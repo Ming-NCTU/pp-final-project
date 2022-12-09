@@ -1,0 +1,6 @@
+-Wall
+-g
+-MM
+RPPG.cpp
+Heartbeat.cpp
+opencv.cpp
