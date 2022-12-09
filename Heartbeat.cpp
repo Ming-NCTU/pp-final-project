@@ -7,11 +7,14 @@
 //
 
 #include "Heartbeat.hpp"
+#include <ctime>
+#include <chrono>
 
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/core/utility.hpp>
 #include "opencv.hpp"
 
 #define DEFAULT_RPPG_ALGORITHM "g"
@@ -108,8 +111,9 @@ faceDetAlgorithm to_faceDetAlgorithm(string s) {
 
 int main(int argc, char * argv[]) {
 
-    Heartbeat cmd_line(argc, argv, true);
 
+    Heartbeat cmd_line(argc, argv, true);
+	//cv::setNumThreads(0);  // Force sequencial
     string input = cmd_line.get_arg("-i"); // Filepath for offline mode
 
     // algorithm setting
@@ -142,6 +146,7 @@ int main(int argc, char * argv[]) {
     } else {
         rescanFrequency = DEFAULT_RESCAN_FREQUENCY;
     }
+
 
     // samplingFrequency setting
     double samplingFrequency;
@@ -225,6 +230,7 @@ int main(int argc, char * argv[]) {
     VideoCapture cap;
     if (offlineMode) cap.open(input);
     else cap.open(0);
+    cout << cap.isOpened() << "cap opened?" << endl;
     if (!cap.isOpened()) {
         return -1;
     }
@@ -271,8 +277,12 @@ int main(int argc, char * argv[]) {
 
     int i = 0;
     Mat frameRGB, frameGray;
-
+	auto old_clock = std::chrono::system_clock::now();
+	auto new_clock = std::chrono::system_clock::now();
+	std::chrono::duration<double> times;
+	double fps = 0.0;
     while (true) {
+	    old_clock = new_clock;
 
         // Grab RGB frame
         cap.read(frameRGB);
@@ -289,15 +299,21 @@ int main(int argc, char * argv[]) {
         else time = (cv::getTickCount()*1000.0)/cv::getTickFrequency();
 
         if (i % downsample == 0) {
-            rppg.processFrame(frameRGB, frameGray, time);
+            rppg.processFrame(frameRGB, frameGray, time, fps);
         } else {
             cout << "SKIPPING FRAME TO DOWNSAMPLE!" << endl;
         }
 
         if (gui) {
             imshow(window_title.str(), frameRGB);
-            if (waitKey(30) >= 0) break;
+            if (waitKey(10) >= 0) break;
         }
+	new_clock = std::chrono::system_clock::now();
+	times = new_clock - old_clock;
+	
+	//cout << "FPS:" << 1 / times.count() << endl;
+	fps = 1 / times.count();
+	//cout << fps;
 
         i++;
     }

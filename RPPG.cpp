@@ -7,6 +7,7 @@
 //
 
 #include "RPPG.hpp"
+#include <omp.h>
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
@@ -18,6 +19,8 @@
 using namespace cv;
 using namespace dnn;
 using namespace std;
+
+vector<Rect> boxes;
 
 #define LOW_BPM 42
 #define HIGH_BPM 240
@@ -86,10 +89,11 @@ void RPPG::exit() {
     logfileDetailed.close();
 }
 
-void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time) {
+void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time, double frame_fps) {
 
     // Set time
     this->time = time;
+    this->frame_fps = frame_fps;
 
     if (!faceValid) {
 
@@ -180,7 +184,8 @@ void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time) {
 void RPPG::detectFace(Mat &frameRGB, Mat &frameGray) {
 
     cout << "Scanning for faces…" << endl;
-    vector<Rect> boxes = {};
+    //vector<Rect> boxes = {};
+    boxes.clear();
 
     switch (faceDetAlg) {
       case haar:
@@ -196,6 +201,7 @@ void RPPG::detectFace(Mat &frameRGB, Mat &frameGray) {
         Mat detection = dnnClassifier.forward();
         Mat detectionMat(detection.size[2], detection.size[3], CV_32F, detection.ptr<float>());
         float confidenceThreshold = 0.5;
+	cout << "deep" << endl;
 
         for (int i = 0; i < detectionMat.rows; i++) {
           float confidence = detectionMat.at<float>(i, 2);
@@ -248,7 +254,32 @@ void RPPG::setNearestBox(vector<Rect> boxes) {
 void RPPG::detectCorners(Mat &frameGray) {
 
     // Define tracking region
+    
     Mat trackingRegion = Mat::zeros(frameGray.rows, frameGray.cols, CV_8UC1);
+    for(int i = 0; i < boxes.size(); ++i){
+	    Point points[1][4];
+	    points[0][0] = Point(boxes[i].tl().x + 0.22 * boxes[i].width,
+			    boxes[i].tl().y + 0.21 * boxes[i].height);
+	    points[0][1] = Point(boxes[i].tl().x + 0.78 * boxes[i].width,
+			    boxes[i].tl().y + 0.21 * boxes[i].height);
+	    points[0][2] = Point(boxes[i].tl().x + 0.70 * boxes[i].width,
+			    boxes[i].tl().y + 0.65 * boxes[i].height);
+	    points[0][3] = Point(boxes[i].tl().x + 0.30 * boxes[i].width,
+			    boxes[i].tl().y + 0.65 * boxes[i].height);
+	    const Point *pts[1] = {points[0]};
+	    int npts[] = {4};
+	    fillPoly(trackingRegion, pts, npts, 1, WHITE);
+	    goodFeaturesToTrack(frameGray,
+                        corners,
+                        MAX_CORNERS,
+                        QUALITY_LEVEL,
+                        MIN_DISTANCE,
+                        trackingRegion,
+                        3,
+                        false,
+                        0.04);
+    }
+	/*
     Point points[1][4];
     points[0][0] = Point(box.tl().x + 0.22 * box.width,
                          box.tl().y + 0.21 * box.height);
@@ -272,6 +303,7 @@ void RPPG::detectCorners(Mat &frameGray) {
                         3,
                         false,
                         0.04);
+			*/
 }
 
 void RPPG::trackFace(Mat &frameGray) {
@@ -601,7 +633,9 @@ void RPPG::draw(cv::Mat &frameRGB) {
     rectangle(frameRGB, roi, GREEN);
 
     // Draw bounding box
-    rectangle(frameRGB, box, RED);
+    for(auto i = 0 ; i < boxes.size(); ++i)
+    	rectangle(frameRGB, boxes[i], RED);
+    //rectangle(frameRGB, box, RED);
 
     // Draw signal
     if (!s_f.empty() && !powerSpectrum.empty()) {
@@ -654,7 +688,7 @@ void RPPG::draw(cv::Mat &frameRGB) {
 
     // Draw FPS text
     ss.str("");
-    ss << fps << " fps";
+    ss << frame_fps << " fps";
     putText(frameRGB, ss.str(), Point(box.tl().x, box.br().y + 40), FONT_HERSHEY_PLAIN, 2, GREEN, 2);
 
     // Draw corners

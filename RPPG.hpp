@@ -39,7 +39,7 @@ public:
               const string &dnnProtoPath, const string &dnnModelPath,
               const bool log, const bool gui);
 
-    void processFrame(Mat &frameRGB, Mat &frameGray, int time);
+    void processFrame(Mat &frameRGB, Mat &frameGray, int time, double fps);
 
     void exit();
 
@@ -81,7 +81,6 @@ private:
 
     // State variables
     int64_t time;
-    double fps;
     int high;
     int64_t lastSamplingTime;
     int64_t lastScanTime;
@@ -109,6 +108,8 @@ private:
     Mat1d bpms;
     Mat1d powerSpectrum;
     double bpm = 0.0;
+    double fps;
+    double frame_fps;
     double meanBpm;
     double minBpm;
     double maxBpm;
@@ -117,6 +118,9 @@ private:
     ofstream logfile;
     ofstream logfileDetailed;
     string logfilepath;
+
+    // Ewang Custom
+    vector<Mat> maskedFrame;
 };
 
 
