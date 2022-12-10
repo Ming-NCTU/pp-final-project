@@ -172,10 +172,12 @@ void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time, double frame_fp
 
 	lows.clear();
 	highs.clear();
-//#pragma omp parallel for
+#pragma omp parallel for
 	for(int i = 0; i < boxes.size(); ++i){
-		lows.push_back((int)(ss[i].rows * LOW_BPM / SEC_PER_MIN/ fps));
-		highs.push_back((int)(ss[i].rows * HIGH_BPM / SEC_PER_MIN / fps));
+		//lows.push_back((int)(ss[i].rows * LOW_BPM / SEC_PER_MIN/ fps));
+		//highs.push_back((int)(ss[i].rows * HIGH_BPM / SEC_PER_MIN / fps));
+		lows[i] = (int)(ss[i].rows * LOW_BPM / SEC_PER_MIN/ fps);
+		highs[i] = (int)(ss[i].rows * HIGH_BPM / SEC_PER_MIN / fps);
 		if (s.rows >= fps * minSignalSize) {
 
 			// Filtering
@@ -265,6 +267,8 @@ void RPPG::detectFace(Mat &frameRGB, Mat &frameGray) {
 	    bpmses.resize(boxes.size());
 	    s_fs.resize(boxes.size());
 	    powerSpectrums.resize(boxes.size());
+	    lows.resize(boxes.size());
+	    highs.resize(boxes.size());
 	    meanBpms.resize(boxes.size());
 
         cout << "Found a face" << endl;
