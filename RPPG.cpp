@@ -21,6 +21,7 @@ using namespace dnn;
 using namespace std;
 
 vector<Rect> boxes;
+vector<Rect> rois;
 
 #define LOW_BPM 42
 #define HIGH_BPM 240
@@ -128,15 +129,36 @@ void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time, double frame_fp
             push(t);
             push(re);
         }
+	ss.resize(boxes.size());
+	ts.resize(boxes.size());
+	res.resize(boxes.size());
+	for(int i = 0; i < boxes.size() ; ++i){
+		while (ss[i].rows > fps * maxSignalSize) {
+			push(ss[i]);
+			push(ts[i]);
+			push(res[i]);
+		}
+	}
+
 
         assert(s.rows == t.rows && s.rows == re.rows);
 
         // New values
         Scalar means = mean(frameRGB, mask);
+	vector<Scalar> meanses;
+	for(int i = 0; i < boxes.size(); ++i){
+		meanses.push_back(mean(frameRGB, masks[i]));
+	}
         // Add new values to raw signal buffer
         double values[] = {means(0), means(1), means(2)};
         s.push_back(Mat(1, 3, CV_64F, values));
         t.push_back(time);
+	for(int i = 0; i < boxes.size(); ++i){
+		double values[] = {meanses[i](0), meanses[i](1), meanses[i](2)};
+		ss[i].push_back(Mat(1, 3, CV_64F, values));
+		ts[i].push_back(time);
+		res[i].push_back(rescanFlag);
+	}
 
         // Save rescan flag
         re.push_back(rescanFlag);
@@ -148,9 +170,28 @@ void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time, double frame_fp
         low = (int)(s.rows * LOW_BPM / SEC_PER_MIN / fps);
         high = (int)(s.rows * HIGH_BPM / SEC_PER_MIN / fps) + 1;
 
+	lows.clear();
+	highs.clear();
+//#pragma omp parallel for
+	for(int i = 0; i < boxes.size(); ++i){
+		lows.push_back((int)(ss[i].rows * LOW_BPM / SEC_PER_MIN/ fps));
+		highs.push_back((int)(ss[i].rows * HIGH_BPM / SEC_PER_MIN / fps));
+		if (s.rows >= fps * minSignalSize) {
+
+			// Filtering
+			m_extractSignal_pca(i);
+
+			// HR estimation
+			//m_estimateHeartrate(i);
+
+			// Log
+			//m_log(int i);
+		}	
+	}
+
         // If valid signal is large enough: estimate
         if (s.rows >= fps * minSignalSize) {
-
+		
             // Filtering
             switch (rPPGAlg) {
                 case g:
@@ -220,6 +261,11 @@ void RPPG::detectFace(Mat &frameRGB, Mat &frameGray) {
     }
 
     if (boxes.size() > 0) {
+	    //set bpmses, s_fs, powerspectrums.
+	    bpmses.resize(boxes.size());
+	    s_fs.resize(boxes.size());
+	    powerSpectrums.resize(boxes.size());
+	    meanBpms.resize(boxes.size());
 
         cout << "Found a face" << endl;
 
@@ -375,16 +421,26 @@ void RPPG::trackFace(Mat &frameGray) {
 }
 
 void RPPG::updateROI() {
+	rois.clear();
     this->roi = Rect(Point(box.tl().x + 0.3 * box.width, box.tl().y + 0.1 * box.height),
                      Point(box.tl().x + 0.7 * box.width, box.tl().y + 0.25 * box.height));
+    for(auto box:boxes){
+	    rois.push_back(Rect(Point(box.tl().x + 0.3 * box.width, box.tl().y + 0.1 * box.height),
+                      Point(box.tl().x + 0.7 * box.width, box.tl().y + 0.25 * box.height)));
+	}
 }
 
 void RPPG::updateMask(Mat &frameGray) {
 
     cout << "Update mask" << endl;
+    masks.clear();
 
     mask = Mat::zeros(frameGray.size(), frameGray.type());
     rectangle(mask, this->roi, WHITE, FILLED);
+    for(auto i = 0; i <rois.size(); ++i){
+	    masks.push_back( Mat::zeros(frameGray.size(), frameGray.type()));
+	    rectangle(masks[i], rois[i], WHITE, FILLED);
+    }
 }
 
 void RPPG::invalidateFace() {
@@ -630,7 +686,10 @@ void RPPG::log() {
 void RPPG::draw(cv::Mat &frameRGB) {
 
     // Draw roi
-    rectangle(frameRGB, roi, GREEN);
+    for(auto r: rois)
+	    rectangle(frameRGB, r, GREEN);
+    //rectangle(frameRGB, roi, GREEN);
+
 
     // Draw bounding box
     for(auto i = 0 ; i < boxes.size(); ++i)
@@ -638,6 +697,7 @@ void RPPG::draw(cv::Mat &frameRGB) {
     //rectangle(frameRGB, box, RED);
 
     // Draw signal
+    /*
     if (!s_f.empty() && !powerSpectrum.empty()) {
 
         // Display of signals with fixed dimensions
@@ -676,14 +736,69 @@ void RPPG::draw(cv::Mat &frameRGB) {
             p1 = p2;
         }
     }
+    */
+    // multiple face
+    for(int i = 0; i < boxes.size(); ++i){
+
+	    if (!s_fs[i].empty() && !powerSpectrums[i].empty()) {
+
+		    // Display of signals with fixed dimensions
+		    double displayHeight = box.height/2.0;
+		    double displayWidth = box.width*0.8;
+
+		    // Draw signal
+		    double vmin, vmax;
+		    Point pmin, pmax;
+		    minMaxLoc(s_fs[i], &vmin, &vmax, &pmin, &pmax);
+		    double heightMult = displayHeight/(vmax - vmin);
+		    double widthMult = displayWidth/(s_fs[i].rows - 1);
+		    double drawAreaTlX = boxes[i].tl().x + boxes[i].width + 20;
+		    double drawAreaTlY = boxes[i].tl().y;
+		    Point p1(drawAreaTlX, drawAreaTlY + (vmax - s_fs[i].at<double>(0, 0))*heightMult);
+		    Point p2;
+		    for (int j = 1; j < s_fs[i].rows; j++) {
+			    p2 = Point(drawAreaTlX + j * widthMult, drawAreaTlY + (vmax - s_fs[i].at<double>(j, 0))*heightMult);
+			    line(frameRGB, p1, p2, RED, 2);
+			    p1 = p2;
+		    }
+
+		    // Draw powerSpectrum
+		    const int total = s_fs[i].rows;
+		    Mat bandMask = Mat::zeros(s_fs[i].size(), CV_8U);
+		    bandMask.rowRange(min(lows[i], total), min(highs[i], total) + 1).setTo(ONE);
+		    minMaxLoc(powerSpectrums[i], &vmin, &vmax, &pmin, &pmax, bandMask);
+		    heightMult = displayHeight/(vmax - vmin);
+		    widthMult = displayWidth/(highs[i] - lows[i]);
+		    drawAreaTlX = boxes[i].tl().x + boxes[i].width + 20;
+		    drawAreaTlY = boxes[i].tl().y + boxes[i].height/2.0;
+		    p1 = Point(drawAreaTlX, drawAreaTlY + (vmax - powerSpectrums[i].at<double>(low, 0))*heightMult);
+		    for (int j = lows[i] + 1; j <= highs[i]; j++) {
+			    p2 = Point(drawAreaTlX + (j - low) * widthMult, drawAreaTlY + (vmax - powerSpectrums[i].at<double>(j, 0)) * heightMult);
+			    line(frameRGB, p1, p2, RED, 2);
+			    p1 = p2;
+		    }
+	    }
+    }
+
 
     std::stringstream ss;
 
     // Draw BPM text
+    /*
     if (faceValid) {
         ss.precision(3);
         ss << meanBpm << " bpm";
         putText(frameRGB, ss.str(), Point(box.tl().x, box.tl().y - 10), FONT_HERSHEY_PLAIN, 2, RED, 2);
+    }
+    */
+    // multi
+    if (faceValid) {
+	    for(int i = 0; i < boxes.size(); ++i){
+		    ss.str("");
+		    ss.precision(3);
+		    ss << meanBpms[i] << "bpm";
+		    putText(frameRGB, ss.str(), Point(boxes[i].tl().x, boxes[i].tl().y - 10), FONT_HERSHEY_PLAIN, 2, RED, 2);
+	    }
     }
 
     // Draw FPS text
@@ -698,3 +813,77 @@ void RPPG::draw(cv::Mat &frameRGB) {
         line(frameRGB, Point(corners[i].x,corners[i].y-5), Point(corners[i].x,corners[i].y+5), GREEN, 1);
     }
 }
+
+void RPPG::m_extractSignal_pca(int i) {
+
+    // Denoise signals
+    Mat s_den = Mat(ss[i].rows, ss[i].cols, CV_64F);
+    denoise(ss[i], res[i], s_den);
+
+    // Normalize signals
+    normalization(s_den, s_den);
+
+    // Detrend
+    Mat s_det = Mat(ss[i].rows, ss[i].cols, CV_64F);
+    detrend(s_den, s_det, fps);
+
+    // PCA to reduce dimensionality
+    Mat s_pca = Mat(ss[i].rows, 1, CV_32F);
+    Mat pc = Mat(ss[i].rows, ss[i].cols, CV_32F);
+    pcaComponent(s_det, s_pca, pc, lows[i], highs[i]);
+
+    // Moving average
+    Mat s_mav = Mat(ss[i].rows, 1, CV_32F);
+    movingAverage(s_pca, s_mav, 3, fmax(floor(fps/6), 2));
+
+    if(i >= s_fs.size()){
+	s_fs.push_back(s_mav);
+    }
+    else
+	    s_mav.copyTo(s_fs[i]);
+    return;
+}
+
+void RPPG::m_estimateHeartrate(int i) {
+
+    powerSpectrums[i] = cv::Mat(s_fs[i].size(), CV_32F);
+    timeToFrequency(s_fs[i], powerSpectrum, true);
+
+    // band mask
+    const int total = s_fs[i].rows;
+    Mat bandMask = Mat::zeros(s_fs[i].size(), CV_8U);
+    bandMask.rowRange(min(lows[i], total), min(highs[i], total) + 1).setTo(ONE);
+
+    if (!powerSpectrum.empty()) {
+
+	    // grab index of max power spectrum
+	    double min, max;
+	    Point pmin, pmax;
+	    minMaxLoc(powerSpectrum, &min, &max, &pmin, &pmax, bandMask);
+
+	    // calculate BPM
+	    bpm = pmax.y * fps / total * SEC_PER_MIN;
+
+	    bpmses[i].push_back(bpm);
+	    //bpms.push_back(bpm);
+
+	    cout << i << "boxes" << endl;
+	    cout << "FPS=" << fps << " Vals=" << powerSpectrum.rows << " Peak=" << pmax.y << " BPM=" << bpm << endl;
+
+	    //if ((time - lastSamplingTime) * timeBase >= 1/samplingFrequency) {
+		    lastSamplingTime = time;
+
+		    cv::sort(bpmses[i], bpmses[i], SORT_EVERY_COLUMN);
+
+		    // average calculated BPMs since last sampling time
+		    meanBpms[i] = mean(bpmses[i])(0);
+		    minBpm = bpmses[i].at<double>(0, 0);
+		    maxBpm = bpmses[i].at<double>(bpms.rows-1, 0);
+
+		    std::cout << "meanBPM=" << meanBpms[i] << " minBpm=" << minBpm << " maxBpm=" << maxBpm << std::endl;
+
+		    bpmses[i].pop_back(bpmses[i].rows);
+	    //}
+    }
+}
+

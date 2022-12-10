@@ -113,7 +113,7 @@ int main(int argc, char * argv[]) {
 
 
     Heartbeat cmd_line(argc, argv, true);
-	//cv::setNumThreads(0);  // Force sequencial
+	cv::setNumThreads(0);  // Force sequencial
     string input = cmd_line.get_arg("-i"); // Filepath for offline mode
 
     // algorithm setting

@@ -56,6 +56,13 @@ private:
     void extractSignal_g();
     void extractSignal_pca();
     void extractSignal_xminay();
+    // EWang dev multiple face
+    //void m_extractSignal_g(int i);
+    void m_extractSignal_pca(int i);
+    //void m_extractSignal_xminay(int i);
+    void m_estimateHeartrate(int i);
+    void m_log(int i);
+    //
     void estimateHeartrate();
     void draw(Mat &frameRGB);
     void invalidateFace();
@@ -96,6 +103,7 @@ private:
     // Mask
     Rect box;
     Mat1b mask;
+    vector<Mat1b> masks;
     Rect roi;
 
     // Raw signal
@@ -121,6 +129,15 @@ private:
 
     // Ewang Custom
     vector<Mat> maskedFrame;
+    vector<Mat1d> ss;
+    vector<Mat1d> ts;
+    vector<Mat1d> res;
+    vector<int> lows;
+    vector<int> highs;
+    vector<Mat1d> s_fs;
+    vector<Mat1d> bpmses;
+    vector<Mat1d> powerSpectrums;
+    vector<double> meanBpms;
 };
 
 
