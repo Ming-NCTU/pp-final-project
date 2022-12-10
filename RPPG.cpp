@@ -182,7 +182,7 @@ void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time, double frame_fp
 			m_extractSignal_pca(i);
 
 			// HR estimation
-			//m_estimateHeartrate(i);
+			m_estimateHeartrate(i);
 
 			// Log
 			//m_log(int i);
