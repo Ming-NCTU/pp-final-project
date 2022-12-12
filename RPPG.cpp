@@ -278,6 +278,8 @@ void RPPG::detectFace(Mat &frameRGB, Mat &frameGray) {
         updateROI();
         updateMask(frameGray);
         faceValid = true;
+	 
+	cout << "Done" << endl;
 
     } else {
 
@@ -306,6 +308,7 @@ void RPPG::detectCorners(Mat &frameGray) {
     // Define tracking region
     
     Mat trackingRegion = Mat::zeros(frameGray.rows, frameGray.cols, CV_8UC1);
+#pragma omp parallel for
     for(int i = 0; i < boxes.size(); ++i){
 	    Point points[1][4];
 	    points[0][0] = Point(boxes[i].tl().x + 0.22 * boxes[i].width,

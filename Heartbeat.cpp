@@ -9,13 +9,16 @@
 #include "Heartbeat.hpp"
 #include <ctime>
 #include <chrono>
+#include <numeric>
 
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/cudaimgproc.hpp>
 #include <opencv2/core/utility.hpp>
 #include "opencv.hpp"
+#include <algorithm>
 
 #define DEFAULT_RPPG_ALGORITHM "g"
 #define DEFAULT_FACEDET_ALGORITHM "haar"
@@ -281,6 +284,7 @@ int main(int argc, char * argv[]) {
 	auto new_clock = std::chrono::system_clock::now();
 	std::chrono::duration<double> times;
 	double fps = 0.0;
+	vector<double> tt;
     while (true) {
 	    old_clock = new_clock;
 
@@ -294,6 +298,13 @@ int main(int argc, char * argv[]) {
         cvtColor(frameRGB, frameGray, COLOR_BGR2GRAY);
         equalizeHist(frameGray, frameGray);
 
+	// GPU version
+	//cv::cuda::GpuMat dst, src;
+	//src.upload(frameRGB);
+	//cv::cuda::cvtColor(src, dst, COLOR_BGR2GRAY);
+	//cv::cuda::equalizeHist(dst, dst);
+	//dst.download(frameGray);
+
         int time;
         if (offlineMode) time = (int)cap.get(CAP_PROP_POS_MSEC);
         else time = (cv::getTickCount()*1000.0)/cv::getTickFrequency();
@@ -306,10 +317,13 @@ int main(int argc, char * argv[]) {
 
         if (gui) {
             imshow(window_title.str(), frameRGB);
-            if (waitKey(1) >= 0) break;
+            if (waitKey(10) >= 0) break;
         }
 	new_clock = std::chrono::system_clock::now();
 	times = new_clock - old_clock;
+	tt.push_back(times.count());
+	cerr << std::reduce(tt.begin(), tt.end()) / (double) tt.size();
+	cerr << endl;
 	
 	//cout << "FPS:" << 1 / times.count() << endl;
 	fps = 1 / times.count();

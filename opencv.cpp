@@ -54,6 +54,7 @@ namespace cv {
         _a.getMat().copyTo(_b);
         Mat b = _b.getMat();
         Scalar mean, stdDev;
+#pragma omp parallel for
         for (int i = 0; i < b.cols; i++) {
             meanStdDev(b.col(i), mean, stdDev);
             b.col(i) = (b.col(i) - mean[0]) / stdDev[0];
@@ -75,6 +76,7 @@ namespace cv {
         Mat diff;
         subtract(a.rowRange(1, a.rows), a.rowRange(0, a.rows-1), diff);
 
+//#pragma omp parallel for
         for (int i = 1; i < jumps.rows; i++) {
             if (jumps.at<bool>(i, 0)) {
                 Mat mask = Mat::zeros(a.size(), CV_8U);
@@ -159,6 +161,7 @@ namespace cv {
         //Point centre = Point(filter.rows / 2, filter.cols / 2);
         double radius;
 
+#pragma omp parallel for
         for (int i = 0; i < filter.rows; i++) {
             for (int j = 0; j < filter.cols; j++) {
                 radius = i;
@@ -234,6 +237,7 @@ namespace cv {
 
         // Identify most distinct
         std::vector<double> vals;
+//#pragma omp parallel for
         for (int i = 0; i < pc.cols; i++) {
             cv::Mat magnitude = Mat(pc.rows, 1, CV_32F);
             // Calculate spectral magnitudes
