@@ -192,6 +192,7 @@ void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time, double frame_fp
 	}
 
         // If valid signal is large enough: estimate
+	/*
         if (s.rows >= fps * minSignalSize) {
 		
             // Filtering
@@ -213,6 +214,7 @@ void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time, double frame_fp
             // Log
             log();
         }
+	*/
 
         if (guiMode) {
             draw(frameRGB);
@@ -332,7 +334,7 @@ void RPPG::detectCorners(Mat &frameGray) {
                         false,
                         0.04);
     }
-	/*
+    /*
     Point points[1][4];
     points[0][0] = Point(box.tl().x + 0.22 * box.width,
                          box.tl().y + 0.21 * box.height);
@@ -843,10 +845,10 @@ void RPPG::m_extractSignal_pca(int i) {
     Mat s_mav = Mat(ss[i].rows, 1, CV_32F);
     movingAverage(s_pca, s_mav, 3, fmax(floor(fps/6), 2));
 
-    if(i >= s_fs.size()){
-	s_fs.push_back(s_mav);
-    }
-    else
+    //if(i >= s_fs.size()){
+    //    s_fs.push_back(s_mav);
+    //}
+    //else
 	    s_mav.copyTo(s_fs[i]);
     return;
 }
@@ -854,19 +856,19 @@ void RPPG::m_extractSignal_pca(int i) {
 void RPPG::m_estimateHeartrate(int i) {
 
     powerSpectrums[i] = cv::Mat(s_fs[i].size(), CV_32F);
-    timeToFrequency(s_fs[i], powerSpectrum, true);
+    timeToFrequency(s_fs[i], powerSpectrums[i], true);
 
     // band mask
     const int total = s_fs[i].rows;
     Mat bandMask = Mat::zeros(s_fs[i].size(), CV_8U);
     bandMask.rowRange(min(lows[i], total), min(highs[i], total) + 1).setTo(ONE);
 
-    if (!powerSpectrum.empty()) {
+    if (!powerSpectrums[i].empty()) {
 
 	    // grab index of max power spectrum
 	    double min, max;
 	    Point pmin, pmax;
-	    minMaxLoc(powerSpectrum, &min, &max, &pmin, &pmax, bandMask);
+	    minMaxLoc(powerSpectrums[i], &min, &max, &pmin, &pmax, bandMask);
 
 	    // calculate BPM
 	    bpm = pmax.y * fps / total * SEC_PER_MIN;
@@ -875,7 +877,7 @@ void RPPG::m_estimateHeartrate(int i) {
 	    //bpms.push_back(bpm);
 
 	    cout << i << "boxes" << endl;
-	    cout << "FPS=" << fps << " Vals=" << powerSpectrum.rows << " Peak=" << pmax.y << " BPM=" << bpm << endl;
+	    cout << "FPS=" << fps << " Vals=" << powerSpectrums[i].rows << " Peak=" << pmax.y << " BPM=" << bpm << endl;
 
 	    //if ((time - lastSamplingTime) * timeBase >= 1/samplingFrequency) {
 		    lastSamplingTime = time;
