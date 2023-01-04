@@ -317,7 +317,7 @@ int main(int argc, char * argv[]) {
 
         if (gui) {
             imshow(window_title.str(), frameRGB);
-            if (waitKey(10) >= 0) break;
+            if (waitKey(1) >= 0) break;
         }
 	new_clock = std::chrono::system_clock::now();
 	times = new_clock - old_clock;

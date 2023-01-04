@@ -13,6 +13,9 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/video.hpp>
+#include <chrono>
+#include <ctime>
+#include <numeric>
 
 #include "opencv.hpp"
 
@@ -22,6 +25,8 @@ using namespace std;
 
 vector<Rect> boxes;
 vector<Rect> rois;
+
+vector<double> improve_time;
 
 #define LOW_BPM 42
 #define HIGH_BPM 240
@@ -95,6 +100,7 @@ void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time, double frame_fp
     // Set time
     this->time = time;
     this->frame_fps = frame_fps;
+    auto old_clock = std::chrono::system_clock::now();
 
     if (!faceValid) {
 
@@ -216,6 +222,11 @@ void RPPG::processFrame(Mat &frameRGB, Mat &frameGray, int time, double frame_fp
         }
 	*/
 
+	auto clock_new = std::chrono::system_clock::now();
+	std::chrono::duration<double> times = clock_new - old_clock;
+	improve_time.push_back(times.count());
+	cerr <<"improve time" << std::reduce(improve_time.begin(), improve_time.end()) / (double) improve_time.size();
+	cerr << endl;
         if (guiMode) {
             draw(frameRGB);
         }
